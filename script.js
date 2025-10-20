@@ -1,41 +1,37 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const setupDiv = document.getElementById('setup');
-    const mainContentDiv = document.getElementById('main-content');
-    const saveSetupBtn = document.getElementById('save-setup');
-    const addWeightBtn = document.getElementById('add-weight');
-    const currentDateInput = document.getElementById('current-date');
-
-    const startWeightInput = document.getElementById('start-weight');
-    const goalWeightInput = document.getElementById('goal-weight');
-    const currentWeightInput = document.getElementById('current-weight');
-
-    const chartCanvas = document.getElementById('progress-chart');
-    let progressChart;
-
+    // App state
     let appData = {
         startWeight: null,
         goalWeight: null,
-        entries: [] // { date: 'YYYY-MM-DD', weight: 75 }
+        entries: []
     };
+    let progressChart;
 
+    // DOM Elements
+    const chartCanvas = document.getElementById('progress-chart');
+    const currentDateInput = document.getElementById('current-date');
+    const startWeightInput = document.getElementById('start-weight');
+    const goalWeightInput = document.getElementById('goal-weight');
+    const saveSetupBtn = document.getElementById('save-setup');
+    const dictateBtn = document.getElementById('dictate-btn-large');
+    const exportBtn = document.getElementById('export-btn');
+    const importBtn = document.getElementById('import-btn');
+    const importFileInput = document.getElementById('import-file-input');
+    const tabNav = document.querySelector('.tab-nav');
+    const tabContents = document.querySelectorAll('.tab-content');
+    const tabButtons = document.querySelectorAll('.tab-button');
+
+    // --- Core Functions ---
     function saveData() {
         localStorage.setItem('weightTrackerData', JSON.stringify(appData));
     }
 
-    function loadData() {
-        const savedData = localStorage.getItem('weightTrackerData');
-        if (savedData) {
-            appData = JSON.parse(savedData);
-            if (appData.startWeight && appData.goalWeight) {
-                setupDiv.classList.add('hidden');
-                mainContentDiv.classList.remove('hidden');
-                updateChart();
-            }
-        }
-    }
-
     function updateChart() {
-        const labels = appData.entries.map(entry => entry.date);
+        if (!progressChart && !document.getElementById('tab-graph').classList.contains('active')) {
+            return; // Don't render chart if its tab is not visible
+        }
+
+        const labels = appData.entries.map(entry => new Date(entry.date).toLocaleDateString());
         const weights = appData.entries.map(entry => entry.weight);
 
         const newDatasets = [{
@@ -43,16 +39,15 @@ document.addEventListener('DOMContentLoaded', () => {
             data: weights,
             borderColor: '#457b9d',
             backgroundColor: '#457b9d',
-            tension: 0.1
+            tension: 0.1,
+            fill: false
         }];
 
         if (progressChart) {
-            // If chart exists, just update data and refresh
             progressChart.data.labels = labels;
             progressChart.data.datasets = newDatasets;
             progressChart.update();
         } else {
-            // If chart doesn't exist, create it
             progressChart = new Chart(chartCanvas, {
                 type: 'line',
                 data: {
@@ -60,98 +55,66 @@ document.addEventListener('DOMContentLoaded', () => {
                     datasets: newDatasets
                 },
                 options: {
-                    scales: {
-                        y: {
-                            beginAtZero: false
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: true
-                        }
-                    }
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: false } },
+                    plugins: { legend: { display: true } }
                 }
             });
         }
     }
 
     function setTodayDate() {
-        const today = new Date().toISOString().split('T')[0];
-        currentDateInput.value = today;
+        currentDateInput.value = new Date().toISOString().split('T')[0];
     }
 
-    function addWeightEntry(date, weight) {
-        if (weight > 0 && date) {
-            const existingEntryIndex = appData.entries.findIndex(entry => entry.date === date);
-            if (existingEntryIndex !== -1) {
-                appData.entries[existingEntryIndex].weight = weight;
-            } else {
-                appData.entries.push({ date, weight });
-            }
+    // --- Tab Navigation ---
+    function switchTab(targetTabId) {
+        tabContents.forEach(tab => tab.classList.remove('active'));
+        tabButtons.forEach(button => button.classList.remove('active'));
 
-            appData.entries.sort((a, b) => new Date(a.date) - new Date(b.date));
+        const newActiveTab = document.getElementById(targetTabId);
+        const newActiveButton = document.querySelector(`.tab-button[data-tab="${targetTabId}"]`);
 
-            saveData();
-            updateChart();
-            currentWeightInput.value = ''; 
-        } else {
-            alert('Veuillez entrer une date et un poids valides.');
+        if (newActiveTab) newActiveTab.classList.add('active');
+        if (newActiveButton) newActiveButton.classList.add('active');
+
+        if (targetTabId === 'tab-graph') {
+            setTimeout(updateChart, 0); // Update chart when tab is shown
         }
     }
 
-    saveSetupBtn.addEventListener('click', () => {
-        const start = parseFloat(startWeightInput.value);
-        const goal = parseFloat(goalWeightInput.value);
-
-        if (start > 0 && goal > 0) {
-            appData.startWeight = start;
-            appData.goalWeight = goal;
-            saveData();
-            setupDiv.classList.add('hidden');
-            mainContentDiv.classList.remove('hidden');
-            updateChart();
-        } else {
-            alert('Veuillez entrer un poids de départ et un poids souhaité valides.');
+    tabNav.addEventListener('click', (e) => {
+        const button = e.target.closest('.tab-button');
+        if (button && !button.disabled) {
+            switchTab(button.dataset.tab);
         }
     });
 
-    addWeightBtn.addEventListener('click', () => {
-        const weight = parseFloat(currentWeightInput.value);
-        const date = currentDateInput.value;
-        addWeightEntry(date, weight);
-    });
-
-    const dictateBtn = document.getElementById('dictate-btn');
-
+    // --- Speech Recognition ---
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
         recognition.lang = 'fr-FR';
 
-        dictateBtn.addEventListener('click', () => {
-            dictateBtn.textContent = '🎤 Écoute en cours...';
-            recognition.start();
-        });
+        dictateBtn.addEventListener('click', () => recognition.start());
 
-        recognition.onend = () => {
-            dictateBtn.textContent = '🎤 Dicter le poids';
-        };
-
+        recognition.onstart = () => dictateBtn.classList.add('listening');
+        recognition.onend = () => dictateBtn.classList.remove('listening');
         recognition.onerror = (event) => {
-            alert("Erreur de reconnaissance vocale: " + event.error);
+            dictateBtn.classList.remove('listening');
+            alert(`Erreur de reconnaissance: ${event.error}`);
         };
 
         recognition.onresult = (event) => {
             const transcript = event.results[0][0].transcript;
-            const numberRegex = /\d+([,.]\d+)?/;
-            const match = transcript.match(numberRegex);
+            const match = transcript.match(/\d+([,.]\d+)?/);
 
             if (match) {
                 const weight = parseFloat(match[0].replace(',', '.'));
                 const date = currentDateInput.value;
-                
-                // Explicitly perform save and update logic here
                 const existingEntryIndex = appData.entries.findIndex(entry => entry.date === date);
+
                 if (existingEntryIndex !== -1) {
                     appData.entries[existingEntryIndex].weight = weight;
                 } else {
@@ -159,22 +122,88 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 appData.entries.sort((a, b) => new Date(a.date) - new Date(b.date));
                 saveData();
-                setTimeout(() => {
-                    updateChart();
-                }, 0); // Defer update to fix timing issue
-                currentWeightInput.value = '';
-
+                alert(`Poids de ${weight}kg enregistré pour le ${new Date(date).toLocaleDateString()}.`);
             } else {
-                alert("Aucun poids n'a été détecté dans votre phrase. Essayez à nouveau.");
+                alert("Aucun poids détecté. Essayez à nouveau.");
             }
         };
-
     } else {
         dictateBtn.style.display = 'none';
-        console.log('Reconnaissance vocale non supportée par ce navigateur.');
     }
 
-    // Initial load
-    loadData();
-    setTodayDate();
+    // --- Data Import/Export ---
+    exportBtn.addEventListener('click', () => {
+        const dataStr = JSON.stringify(appData);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'sauvegarde-poids.json';
+        link.click();
+        URL.revokeObjectURL(url);
+    });
+
+    importBtn.addEventListener('click', () => importFileInput.click());
+
+    importFileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                if (importedData && importedData.entries) {
+                    appData = importedData;
+                    saveData();
+                    initApp(true); // Re-initialize the app state
+                    alert('Données importées avec succès !');
+                } else {
+                    alert('Fichier de sauvegarde invalide.');
+                }
+            } catch (error) {
+                alert('Erreur lors de la lecture du fichier.');
+            }
+        };
+        reader.readAsText(file);
+        importFileInput.value = '';
+    });
+
+    // --- App Initialization ---
+    function initApp(isConfigured) {
+        if (isConfigured) {
+            startWeightInput.value = appData.startWeight;
+            goalWeightInput.value = appData.goalWeight;
+            tabButtons.forEach(b => b.disabled = false);
+            switchTab('tab-home');
+        } else {
+            tabButtons.forEach(b => {
+                if (b.dataset.tab !== 'tab-config') b.disabled = true;
+            });
+            switchTab('tab-config');
+        }
+        setTodayDate();
+        updateChart();
+    }
+
+    saveSetupBtn.addEventListener('click', () => {
+        const start = parseFloat(startWeightInput.value);
+        const goal = parseFloat(goalWeightInput.value);
+        if (start > 0 && goal > 0) {
+            appData.startWeight = start;
+            appData.goalWeight = goal;
+            saveData();
+            initApp(true);
+        } else {
+            alert('Veuillez entrer des poids valides.');
+        }
+    });
+
+    const savedData = localStorage.getItem('weightTrackerData');
+    if (savedData) {
+        appData = JSON.parse(savedData);
+        initApp(appData.startWeight && appData.goalWeight);
+    } else {
+        initApp(false);
+    }
 });

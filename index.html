@@ -2,51 +2,67 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Suivi de Poids</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
 </head>
 <body>
-    <div class="container">
-        <h1>Suivi de Poids</h1>
 
-        <div id="setup" class="card">
-            <h2>Configuration</h2>
-            <div class="input-group">
-                <label for="start-weight">Poids de départ (kg)</label>
-                <input type="number" id="start-weight" placeholder="Ex: 80">
-            </div>
-            <div class="input-group">
-                <label for="goal-weight">Poids souhaité (kg)</label>
-                <input type="number" id="goal-weight" placeholder="Ex: 75">
-            </div>
-            <button id="save-setup">Enregistrer</button>
-        </div>
-
-        <div id="main-content" class="hidden">
-            <div class="card">
-                <h2>Nouvelle pesée</h2>
-                <div class="input-group">
-                    <label for="current-date">Date</label>
+    <main class="content">
+        <!-- Tab 1: Home / Dictation -->
+        <div id="tab-home" class="tab-content active">
+            <div class="home-container">
+                <div class="date-selector">
+                    <label for="current-date">Date de la pesée</label>
                     <input type="date" id="current-date">
                 </div>
-                <div class="input-group">
-                    <label for="current-weight">Poids du jour (kg)</label>
-                    <input type="number" id="current-weight" placeholder="Ex: 79.5">
-                </div>
-                <div class="button-group">
-                    <button id="add-weight">Ajouter</button>
-                    <button id="dictate-btn" style="margin-top: 10px;">🎤 Dicter le poids</button>
-                </div>
-            </div>
-
-            <div class="card">
-                <h2>Progression</h2>
-                <canvas id="progress-chart"></canvas>
+                <button id="dictate-btn-large" class="dictate-button">
+                    <span class="icon">🎤</span>
+                    <span class="text">Appuyer pour dicter</span>
+                </button>
             </div>
         </div>
-    </div>
+
+        <!-- Tab 2: Graph -->
+        <div id="tab-graph" class="tab-content">
+            <canvas id="progress-chart"></canvas>
+        </div>
+
+        <!-- Tab 3: Configuration -->
+        <div id="tab-config" class="tab-content">
+            <div class="config-container">
+                <div id="setup" class="card">
+                    <h2>Configuration initiale</h2>
+                    <div class="input-group">
+                        <label for="start-weight">Poids de départ (kg)</label>
+                        <input type="number" id="start-weight" placeholder="Ex: 80">
+                    </div>
+                    <div class="input-group">
+                        <label for="goal-weight">Poids souhaité (kg)</label>
+                        <input type="number" id="goal-weight" placeholder="Ex: 75">
+                    </div>
+                    <button id="save-setup">Enregistrer</button>
+                </div>
+
+                <div class="card">
+                    <h2>Données</h2>
+                    <div class="io-actions">
+                        <button id="import-btn">📥 Importer une sauvegarde</button>
+                        <button id="export-btn">📤 Exporter mes données</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <nav class="tab-nav">
+        <button data-tab="tab-home" class="tab-button active">🏠<span class="label">Saisie</span></button>
+        <button data-tab="tab-graph" class="tab-button">📊<span class="label">Graphique</span></button>
+        <button data-tab="tab-config" class="tab-button">⚙️<span class="label">Configuration</span></button>
+    </nav>
+
+    <input type="file" id="import-file-input" accept=".json" style="display: none;">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="script.js"></script>
