@@ -1,0 +1,21 @@
+{
+    "name": "Suivi de Poids",
+    "short_name": "Poids",
+    "description": "Une application simple pour suivre son poids.",
+    "start_url": "/index.html",
+    "display": "standalone",
+    "background_color": "#f0f2f5",
+    "theme_color": "#1d3557",
+    "icons": [
+        {
+            "src": "icons/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icons/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
