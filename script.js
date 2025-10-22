@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // App state
     let appData = {
+        startDate: null,
         startWeight: null,
         goalWeight: null,
         entries: []
@@ -10,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
     const chartCanvas = document.getElementById('progress-chart');
     const currentDateInput = document.getElementById('current-date');
+    const startDateInput = document.getElementById('start-date');
     const startWeightInput = document.getElementById('start-weight');
     const goalWeightInput = document.getElementById('goal-weight');
     const saveSetupBtn = document.getElementById('save-setup');
@@ -42,6 +44,18 @@ document.addEventListener('DOMContentLoaded', () => {
             tension: 0.1,
             fill: false
         }];
+
+        if (appData.goalWeight) {
+            newDatasets.push({
+                label: 'Poids souhaité (kg)',
+                data: Array(labels.length).fill(appData.goalWeight),
+                borderColor: '#e63946',
+                backgroundColor: '#e63946',
+                borderDash: [5, 5],
+                fill: false,
+                pointRadius: 0 // No points on the goal line
+            });
+        }
 
         if (progressChart) {
             progressChart.data.labels = labels;
@@ -172,6 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- App Initialization ---
     function initApp(isConfigured) {
         if (isConfigured) {
+            startDateInput.value = appData.startDate;
             startWeightInput.value = appData.startWeight;
             goalWeightInput.value = appData.goalWeight;
             tabButtons.forEach(b => b.disabled = false);
@@ -189,13 +204,27 @@ document.addEventListener('DOMContentLoaded', () => {
     saveSetupBtn.addEventListener('click', () => {
         const start = parseFloat(startWeightInput.value);
         const goal = parseFloat(goalWeightInput.value);
-        if (start > 0 && goal > 0) {
+        const startDate = startDateInput.value;
+
+        if (start > 0 && goal > 0 && startDate) {
             appData.startWeight = start;
             appData.goalWeight = goal;
+            appData.startDate = startDate;
+
+            // Add the starting weight to the entries if it's not already there
+            const existingEntryIndex = appData.entries.findIndex(entry => entry.date === startDate);
+            if (existingEntryIndex !== -1) {
+                appData.entries[existingEntryIndex].weight = start;
+            } else {
+                appData.entries.push({ date: startDate, weight: start });
+            }
+
+            appData.entries.sort((a, b) => new Date(a.date) - new Date(b.date));
+
             saveData();
             initApp(true);
         } else {
-            alert('Veuillez entrer des poids valides.');
+            alert('Veuillez entrer une date de début, un poids de départ et un poids souhaité valides.');
         }
     });
 
