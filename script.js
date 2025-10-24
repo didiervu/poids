@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const startWeightInput = document.getElementById('start-weight');
     const goalWeightInput = document.getElementById('goal-weight');
     const saveSetupBtn = document.getElementById('save-setup');
+    const editSetupBtn = document.getElementById('edit-setup');
     const dictateBtn = document.getElementById('dictate-btn-large');
     const exportBtn = document.getElementById('export-btn');
     const importBtn = document.getElementById('import-btn');
@@ -24,6 +25,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabButtons = document.querySelectorAll('.tab-button');
 
     // --- Core Functions ---
+    function toggleConfigLock(locked) {
+        startDateInput.disabled = locked;
+        startWeightInput.disabled = locked;
+        goalWeightInput.disabled = locked;
+        saveSetupBtn.style.display = locked ? 'none' : 'inline-block';
+        editSetupBtn.style.display = locked ? 'inline-block' : 'none';
+    }
+
     function saveData() {
         localStorage.setItem('weightTrackerData', JSON.stringify(appData));
     }
@@ -35,6 +44,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const labels = appData.entries.map(entry => new Date(entry.date).toLocaleDateString());
         const weights = appData.entries.map(entry => entry.weight);
+
+        if (weights.length === 0) {
+            return; // Don't do anything if there is no data
+        }
+
+        const minWeight = Math.min(...weights);
+        const maxWeight = Math.max(...weights);
+        const padding = 4; // 4kg padding
+
+        const newMin = minWeight - padding;
+        const newMax = maxWeight + padding;
 
         const newDatasets = [{
             label: 'Mon Poids (kg)',
@@ -57,9 +77,24 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { 
+                y: { 
+                    beginAtZero: false,
+                    min: newMin,
+                    max: newMax
+                } 
+            },
+            plugins: { legend: { display: true } }
+        };
+
         if (progressChart) {
             progressChart.data.labels = labels;
             progressChart.data.datasets = newDatasets;
+            progressChart.options.scales.y.min = newMin;
+            progressChart.options.scales.y.max = newMax;
             progressChart.update();
         } else {
             progressChart = new Chart(chartCanvas, {
@@ -68,12 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     labels: labels,
                     datasets: newDatasets
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: false } },
-                    plugins: { legend: { display: true } }
-                }
+                options: chartOptions
             });
         }
     }
@@ -191,15 +221,21 @@ document.addEventListener('DOMContentLoaded', () => {
             goalWeightInput.value = appData.goalWeight;
             tabButtons.forEach(b => b.disabled = false);
             switchTab('tab-home');
+            toggleConfigLock(true);
         } else {
             tabButtons.forEach(b => {
                 if (b.dataset.tab !== 'tab-config') b.disabled = true;
             });
             switchTab('tab-config');
+            toggleConfigLock(false);
         }
         setTodayDate();
         updateChart();
     }
+
+    editSetupBtn.addEventListener('click', () => {
+        toggleConfigLock(false);
+    });
 
     saveSetupBtn.addEventListener('click', () => {
         const start = parseFloat(startWeightInput.value);
