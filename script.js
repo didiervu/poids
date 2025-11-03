@@ -4,6 +4,9 @@ document.addEventListener('DOMContentLoaded', () => {
         startDate: null,
         startWeight: null,
         goalWeight: null,
+        palierStep: 5, // Default value
+        palierLevel: 0,
+        theme: 'light',
         entries: []
     };
     let progressChart;
@@ -14,27 +17,113 @@ document.addEventListener('DOMContentLoaded', () => {
     const startDateInput = document.getElementById('start-date');
     const startWeightInput = document.getElementById('start-weight');
     const goalWeightInput = document.getElementById('goal-weight');
+    const palierStepInput = document.getElementById('palier-step');
     const saveSetupBtn = document.getElementById('save-setup');
     const editSetupBtn = document.getElementById('edit-setup');
     const dictateBtn = document.getElementById('dictate-btn-large');
     const exportBtn = document.getElementById('export-btn');
     const importBtn = document.getElementById('import-btn');
     const importFileInput = document.getElementById('import-file-input');
+    const manualWeightInput = document.getElementById('manual-weight');
+    const saveWeightBtn = document.getElementById('save-weight-btn');
+    const themeCheckbox = document.getElementById('theme-checkbox');
     const tabNav = document.querySelector('.tab-nav');
     const tabContents = document.querySelectorAll('.tab-content');
     const tabButtons = document.querySelectorAll('.tab-button');
+    const weightLostDisplay = document.getElementById('weight-lost-display');
+    const nextPalierDisplay = document.getElementById('next-palier-display');
+
+    const MAX_PALIER_LEVEL = 5;
 
     // --- Core Functions ---
+    function updateButtonColor(level) {
+        for (let i = 1; i <= MAX_PALIER_LEVEL; i++) {
+            dictateBtn.classList.remove(`palier-level-${i}`);
+        }
+        if (level > 0) {
+            const levelClass = `palier-level-${Math.min(level, MAX_PALIER_LEVEL)}`;
+            dictateBtn.classList.add(levelClass);
+        }
+    }
+
+    function checkPalierReached(previousWeight, newWeight) {
+        if (!appData.palierStep || appData.palierStep <= 0 || !previousWeight || newWeight >= previousWeight) {
+            return;
+        }
+
+        const palierStep = appData.palierStep;
+        const paliersCrossed = Math.floor(previousWeight / palierStep) - Math.floor(newWeight / palierStep);
+
+        if (paliersCrossed > 0) {
+            appData.palierLevel += paliersCrossed;
+            updateButtonColor(appData.palierLevel);
+
+            dictateBtn.classList.add('button-celebrate');
+            setTimeout(() => {
+                dictateBtn.classList.remove('button-celebrate');
+            }, 1500); // Animation duration
+        }
+    }
+
+    function updateNextPalierDisplay() {
+        if (appData.palierStep > 0 && appData.entries.length > 0) {
+            const latestWeight = appData.entries[appData.entries.length - 1].weight;
+            const palierStep = appData.palierStep;
+
+            let targetPalierWeight;
+            let kilosToReachPalier;
+
+            // Calculate the palier that is immediately below or at the current weight
+            targetPalierWeight = Math.floor(latestWeight / palierStep) * palierStep;
+
+            // If the current weight is exactly on a palier, the target palier is the one below it.
+            if (latestWeight === targetPalierWeight) {
+                targetPalierWeight -= palierStep;
+            }
+
+            kilosToReachPalier = latestWeight - targetPalierWeight;
+
+            if (kilosToReachPalier > 0) {
+                nextPalierDisplay.textContent = `Prochain palier : ${targetPalierWeight.toFixed(1)} kg (encore ${kilosToReachPalier.toFixed(1)} kg)`;
+            } else {
+                // This case should ideally not be reached if logic is correct,
+                // but as a fallback, it means the weight is below the calculated targetPalierWeight.
+                nextPalierDisplay.textContent = 'Palier atteint ! 🎉';
+            }
+        } else {
+            nextPalierDisplay.textContent = '';
+        }
+    }
+
+    function updateWeightLostDisplay() {
+        if (appData.startWeight && appData.entries.length > 0) {
+            const latestWeight = appData.entries[appData.entries.length - 1].weight;
+            const weightLost = appData.startWeight - latestWeight;
+            if (weightLost > 0) {
+                weightLostDisplay.textContent = `Poids perdu : ${weightLost.toFixed(1)} kg`;
+            } else if (weightLost < 0) {
+                weightLostDisplay.textContent = `Poids gagné : ${Math.abs(weightLost).toFixed(1)} kg`;
+            } else {
+                weightLostDisplay.textContent = `Aucun changement de poids.`;
+            }
+        } else {
+            weightLostDisplay.textContent = '';
+        }
+    }
+
     function toggleConfigLock(locked) {
         startDateInput.disabled = locked;
         startWeightInput.disabled = locked;
         goalWeightInput.disabled = locked;
+        palierStepInput.disabled = locked;
         saveSetupBtn.style.display = locked ? 'none' : 'inline-block';
         editSetupBtn.style.display = locked ? 'inline-block' : 'none';
     }
 
     function saveData() {
         localStorage.setItem('weightTrackerData', JSON.stringify(appData));
+        updateWeightLostDisplay();
+        updateNextPalierDisplay();
     }
 
     function updateChart() {
@@ -77,6 +166,27 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        // Add paliers
+        if (appData.palierStep > 0) {
+            const palierStep = appData.palierStep;
+            const firstPalier = Math.ceil(minWeight / palierStep) * palierStep;
+            const lastPalier = Math.floor(maxWeight / palierStep) * palierStep;
+
+            for (let p = firstPalier; p <= lastPalier; p += palierStep) {
+                if (p > minWeight && p < maxWeight) { // Only show paliers within the weight range
+                    newDatasets.push({
+                        label: `Palier (${p} kg)`,
+                        data: Array(labels.length).fill(p),
+                        borderColor: '#a8dadc',
+                        backgroundColor: '#a8dadc',
+                        borderDash: [3, 3],
+                        fill: false,
+                        pointRadius: 0
+                    });
+                }
+            }
+        }
+
         const chartOptions = {
             responsive: true,
             maintainAspectRatio: false,
@@ -84,7 +194,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 y: { 
                     beginAtZero: false,
                     min: newMin,
-                    max: newMax
+                    max: newMax,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toFixed(1) + ' kg';
+                        }
+                    }
                 } 
             },
             plugins: { legend: { display: true } }
@@ -110,6 +225,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setTodayDate() {
         currentDateInput.value = new Date().toISOString().split('T')[0];
+    }
+
+    function addWeightEntry(date, weight) {
+        if (!date || !weight || weight <= 0) {
+            alert('Veuillez entrer une date et un poids valides.');
+            return false;
+        }
+
+        const previousWeight = appData.entries.length > 0 ? appData.entries[appData.entries.length - 1].weight : null;
+        const existingEntryIndex = appData.entries.findIndex(entry => entry.date === date);
+
+        if (existingEntryIndex !== -1) {
+            appData.entries[existingEntryIndex].weight = weight;
+        } else {
+            appData.entries.push({ date, weight });
+        }
+
+        appData.entries.sort((a, b) => new Date(a.date) - new Date(b.date));
+        
+        checkPalierReached(previousWeight, weight);
+        saveData();
+        return true;
     }
 
     // --- Tab Navigation ---
@@ -152,21 +289,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         recognition.onresult = (event) => {
             const transcript = event.results[0][0].transcript;
-            const match = transcript.match(/\d+([,.]\d+)?/);
+            const match = transcript.match(/\d+(\s*[,.]\s*\d+)?/);
 
             if (match) {
-                const weight = parseFloat(match[0].replace(',', '.'));
+                const weightStr = match[0].replace(/\s/g, '');
+                const weight = parseFloat(weightStr.replace(',', '.'));
                 const date = currentDateInput.value;
-                const existingEntryIndex = appData.entries.findIndex(entry => entry.date === date);
-
-                if (existingEntryIndex !== -1) {
-                    appData.entries[existingEntryIndex].weight = weight;
-                } else {
-                    appData.entries.push({ date, weight });
+                
+                if (addWeightEntry(date, weight)) {
+                    alert(`Poids de ${weight}kg enregistré pour le ${new Date(date).toLocaleDateString()}.`);
                 }
-                appData.entries.sort((a, b) => new Date(a.date) - new Date(b.date));
-                saveData();
-                alert(`Poids de ${weight}kg enregistré pour le ${new Date(date).toLocaleDateString()}.`);
             } else {
                 alert("Aucun poids détecté. Essayez à nouveau.");
             }
@@ -176,6 +308,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Data Import/Export ---
+    saveWeightBtn.addEventListener('click', () => {
+        const weight = parseFloat(manualWeightInput.value);
+        const date = currentDateInput.value;
+
+        if (addWeightEntry(date, weight)) {
+            alert(`Poids de ${weight}kg enregistré pour le ${new Date(date).toLocaleDateString()}.`);
+            manualWeightInput.value = ''; // Clear input field
+        }
+    });
+
     exportBtn.addEventListener('click', () => {
         const dataStr = JSON.stringify(appData);
         const dataBlob = new Blob([dataStr], {type: 'application/json'});
@@ -201,6 +343,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     appData = importedData;
                     saveData();
                     initApp(true); // Re-initialize the app state
+                    updateWeightLostDisplay();
                     alert('Données importées avec succès !');
                 } else {
                     alert('Fichier de sauvegarde invalide.');
@@ -214,11 +357,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- App Initialization ---
+    function applyTheme(theme) {
+        if (theme === 'dark') {
+            document.body.classList.add('dark-mode');
+            themeCheckbox.checked = true;
+        } else {
+            document.body.classList.remove('dark-mode');
+            themeCheckbox.checked = false;
+        }
+    }
+
+    themeCheckbox.addEventListener('change', () => {
+        appData.theme = themeCheckbox.checked ? 'dark' : 'light';
+        applyTheme(appData.theme);
+        saveData();
+    });
+
     function initApp(isConfigured) {
+        applyTheme(appData.theme || 'light');
+
         if (isConfigured) {
             startDateInput.value = appData.startDate;
             startWeightInput.value = appData.startWeight;
             goalWeightInput.value = appData.goalWeight;
+            palierStepInput.value = appData.palierStep || 5;
+            updateButtonColor(appData.palierLevel);
             tabButtons.forEach(b => b.disabled = false);
             switchTab('tab-home');
             toggleConfigLock(true);
@@ -231,6 +394,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         setTodayDate();
         updateChart();
+        updateWeightLostDisplay();
+        updateNextPalierDisplay();
     }
 
     editSetupBtn.addEventListener('click', () => {
@@ -241,11 +406,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const start = parseFloat(startWeightInput.value);
         const goal = parseFloat(goalWeightInput.value);
         const startDate = startDateInput.value;
+        const palierStep = parseFloat(palierStepInput.value);
 
-        if (start > 0 && goal > 0 && startDate) {
+        if (start > 0 && goal > 0 && startDate && palierStep > 0) {
             appData.startWeight = start;
             appData.goalWeight = goal;
             appData.startDate = startDate;
+            appData.palierStep = palierStep;
 
             // Add the starting weight to the entries if it's not already there
             const existingEntryIndex = appData.entries.findIndex(entry => entry.date === startDate);
